@@ -1,24 +1,48 @@
 import '../styles/style.css'
-import javascriptLogo from '../public/javascript.svg'
-import viteLogo from '/vite.svg'
 import { setupCounter } from './counter.js'
+import getAPOD from './getAPOD.mjs'
+import getNASAMedia from './getNASAMedia.mjs'
 
 document.querySelector('#app').innerHTML = `
   <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="${viteLogo}" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank">
-      <img src="${javascriptLogo}" class="logo vanilla" alt="JavaScript logo" />
-    </a>
-    <h1>Hello Vite!</h1>
+    <h1>Test Backend Week</h1>
     <div class="card">
       <button id="counter" type="button"></button>
     </div>
     <p class="read-the-docs">
-      Click on the Vite logo to learn more
+      Open console for API result preview.
     </p>
   </div>
+  
 `
 
 setupCounter(document.querySelector('#counter'))
+//APOD backend is working!
+const APOD = new getAPOD();
+APOD.init();
+
+const ImagesNASA = new getNASAMedia("James Webb Space Telescope", "mission", "video");
+
+const results = await ImagesNASA.init(); 
+
+const videoContainer = document.querySelector('#video-container');
+
+const videoItem = results.find(item => item.video_url);
+
+if (videoItem) {
+  // 'videoItem' backend preview
+  const videoHTML = `
+        <h2>Video playback: ${videoItem.data[0].title}</h2>
+        <video controls poster="${videoItem.poster_url}" style="max-width: 100%; height: auto;">
+            <source src="${videoItem.video_url}" type="video/mp4">
+            ${videoItem.caption_url ? `<track kind="captions" src="${videoItem.caption_url}" srclang="en" label="English">` : ''}
+            Your browser does not support the video tag.
+        </video>
+    `;
+
+  // show video preview in DOM
+  videoContainer.innerHTML = videoHTML;
+} else {
+  // if video is not found
+  videoContainer.innerHTML = "<p>No videos found with the direct file URL.</p>";
+}
