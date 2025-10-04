@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview"
   },
+  "author": "Jose David Colmenarez Gil <jcolmenarezgil@byupathway.edu>",
   "devDependencies": {
     "vite": "^7.1.7"
   }
