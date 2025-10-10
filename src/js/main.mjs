@@ -1,32 +1,40 @@
 import '../styles/style.css'
-import { setupCounter } from './counter.js'
 import getAPOD from './getAPOD.mjs'
 import getNASAMedia from './getNASAMedia.mjs'
+//import getOSDRMissions from './getOSDRMissions.mjs'
+import searchUI from './searchUI.mjs'
 
 document.querySelector('#app').innerHTML = `
-  <div>
-    <h1>Test Backend Week</h1>
-    <div class="card">
-      <button id="counter" type="button"></button>
-    </div>
-    <p class="read-the-docs">
-      Open console for API result preview.
-    </p>
+  <div class="search-options">
+    <input type="radio" id="searchTypeMission" name="searchType" value="mission" checked>
+    <label for="searchTypeMission">NASA Missions</label>
+
+    <input type="radio" id="searchTypeMedia" name="searchType" value="media">
+    <label for="searchTypeMedia">NASA Media</label>
   </div>
-  
+
+  <input type="text" id="searchInput" name="search-input" autocomplete="off">
+  <button id="searchButton">Search</button>
+  <button id="clearButton">Clear History</button>
+
+  <div class="suggest-list"></div> <div class="recent-list"></div> <div id="results"></div>
 `
 
-setupCounter(document.querySelector('#counter'))
-//APOD backend is working!
+const uiManager = new searchUI();
+if (uiManager.searchInput) {
+  uiManager.init();
+}
+
+/* //APOD backend is working!
 const APOD = new getAPOD();
 APOD.init();
 
+//NASA Media is working for videos
 const ImagesNASA = new getNASAMedia("James Webb Space Telescope", "mission", "video");
-
 const results = await ImagesNASA.init(); 
-
+//Single video player
 const videoContainer = document.querySelector('#video-container');
-
+//return item_video_url
 const videoItem = results.find(item => item.video_url);
 
 if (videoItem) {
@@ -46,3 +54,7 @@ if (videoItem) {
   // if video is not found
   videoContainer.innerHTML = "<p>No videos found with the direct file URL.</p>";
 }
+ */
+//NASA Missions
+//const OSDRMissions = new getOSDRMissions("VSS%20Unity");
+//OSDRMissions.init();
