@@ -147,4 +147,43 @@ export default class getNASAMedia {
         }
         return finalResults;
     }
+
+    /**
+     * Get the URL of the HIGHEST resolution image (Original/Large) from the asset bundle.
+     * @param {string} nasaId - NASA's unique ID.
+     * @returns {Promise<string|null>} - The URL of the large image or null.
+     */
+    async getHighResImageUrl(nasaId) {
+        const url = `${this.URL}/asset/${nasaId}`;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                console.error(`Error fetching asset manifest for ${nasaId}: ${response.statusText}`);
+                return null;
+            }
+
+            const data = await response.json();
+
+            const originalLink = data.collection.items.find(item =>
+                item.href.includes('~orig.jpg') ||
+                item.href.endsWith('.jpg') ||
+                item.href.endsWith('.jpeg')
+            );
+
+            if (originalLink && !originalLink.href.toLowerCase().endsWith('.tiff')) {
+                return originalLink.href;
+            }
+
+            const largeLink = data.collection.items
+                .map(item => item.href)
+                .find(href => href.endsWith('.jpg') || href.endsWith('.jpeg'));
+
+            return largeLink || null;
+
+        } catch (e) {
+            console.error(`Error al obtener asset manifest para ${nasaId}: ${e.message}`);
+            return null;
+        }
+    }
 }

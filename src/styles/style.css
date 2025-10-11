@@ -79,3 +79,253 @@ input {
 }
 
 /* end input GLOBAL */
+
+/* button GLOBAL */
+button {
+  font-family: inherit;
+  font-size: inherit;
+
+  outline: none;
+  border: none;
+
+  border-radius: 16px;
+  padding: var(--size-0);
+}
+
+/* pagination-buttons styles */
+.pagination-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--black-tone);
+  padding: .2em;
+}
+
+/* end pagination-buttons  */
+
+/* end button GLOBAL */
+
+.media-results-grid {
+  column-count: 3;
+  column-gap: 20px;
+  padding: 20px 0;
+}
+
+.media-item-card {
+  break-inside: avoid;
+
+  margin-bottom: 20px;
+  background-color: #1f1f1f;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.media-item-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
+.media-visual-area {
+  line-height: 0;
+}
+
+.media-preview-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: filter 0.3s;
+}
+
+.media-item-card:hover .media-preview-img {
+  filter: brightness(0.85);
+}
+
+.media-info-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 15px 10px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0) 100%);
+  color: white;
+  opacity: 0;
+
+  transition: opacity 0.4s;
+}
+
+.media-item-card:hover .media-info-overlay {
+  opacity: 1;
+}
+
+.media-title {
+  font-size: 1.1em;
+  margin: 0 0 5px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.media-meta {
+  font-size: 0.75em;
+  margin: 0;
+  opacity: 0.7;
+}
+
+.video-preview-wrapper {
+  position: relative;
+}
+
+.video-play-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2.5em;
+  color: white;
+  background-color: rgba(0, 0, 0, 0.6);
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+  transition: background-color 0.2s;
+}
+
+.media-item-card:hover .video-play-icon {
+  background-color: rgba(255, 255, 255, 0.8);
+  color: #000;
+}
+
+/* ==================================== */
+/* RESPONSIVE MASONRY GRID           */
+/* ==================================== */
+
+@media (max-width: 1200px) {
+  /* Two columns on medium screens */
+  .media-results-grid {
+    column-count: 2;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Single column on mobile devices */
+  .media-results-grid {
+    column-count: 1;
+    column-gap: 0;
+  }
+
+  .media-item-card {
+    margin-bottom: 15px;
+    border-radius: 0;
+  }
+}
+
+/* ==================================== */
+/* IMAGE MODAL STYLES      */
+/* ==================================== */
+
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.9);
+  padding-top: 50px;
+}
+
+.modal-content {
+  margin: auto;
+  display: flex;
+  width: 90%;
+  max-width: 900px;
+  position: relative;
+  padding: 20px;
+  flex-direction: column;
+  align-items: center;
+}
+
+.modal-image {
+  width: 100%;
+  height: auto;
+  max-height: 80vh;
+  display: block;
+  object-fit: contain;
+}
+
+.close-button {
+  position: absolute;
+  top: 10px;
+  right: 25px;
+  color: #fff;
+  font-size: 40px;
+  font-weight: bold;
+  transition: 0.3s;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+.close-button:hover,
+.close-button:focus {
+  color: #bbb;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.modal-caption {
+  margin-top: 10px;
+  text-align: center;
+  color: #ccc;
+  font-size: 17px;
+  padding: 10px 0;
+  margin-bottom: 20px;
+}
+
+@media only screen and (max-width: 700px) {
+  .modal-content {
+    padding: 10px;
+    width: 100%;
+  }
+}
+
+/* ==================================== */
+/* HR BUTTON STYLES IN MODAL     */
+/* ==================================== */
+
+#highResButton {
+  display: block;
+  margin: 10px auto;
+  padding: 10px 20px;
+  background-color: #3f51b5;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.3s;
+}
+
+#highResButton:hover:not(:disabled) {
+  background-color: #303f9f;
+}
+
+#highResButton:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}

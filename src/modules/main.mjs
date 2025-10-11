@@ -8,6 +8,7 @@ const uiRender = new RenderUIX();
 uiRender.renderLayout();
 
 document.querySelector('#main-content').innerHTML = `
+<div class="main-search-bar">
   <div class="search-options">
     <input type="radio" id="searchTypeMission" name="searchType" value="mission" checked>
     <label for="searchTypeMission">NASA Missions</label>
@@ -15,7 +16,7 @@ document.querySelector('#main-content').innerHTML = `
     <input type="radio" id="searchTypeMedia" name="searchType" value="media">
     <label for="searchTypeMedia">NASA Media</label>
   </div>
-
+</div>
   <input type="text" id="searchInput" name="search-input" autocomplete="off">
   <button id="searchButton">Search</button>
   <button id="clearButton">Clear History</button>
@@ -23,7 +24,7 @@ document.querySelector('#main-content').innerHTML = `
   <div class="suggest-list"></div>
   <div class="recent-list"></div>
   <div id="results"></div>
-  <div id="pageControls"></div>
+  <div class="pagination-buttons" id="pageControls"></div>
 `
 
 const uiManager = new searchUI();

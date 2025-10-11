@@ -26,10 +26,19 @@ export default class searchUI {
         this.missionRadio = document.querySelector("#searchTypeMission");
         this.mediaRadio = document.querySelector("#searchTypeMedia");
         this.resultsContainer = document.querySelector("#results");
+        this.modal = document.querySelector("#imageModal");
+        this.closeButton = document.querySelector(".close-button");
+        this.modalImage = document.querySelector("#modalImage");
+        this.modalCaption = document.querySelector("#modalCaption");
+        this.highResButton = document.querySelector("#highResButton");
 
         if (!this.searchInput || !this.searchButton || !this.listContainer || !this.clearButton || !this.suggestList || !this.resultsContainer || !this.missionRadio || !this.mediaRadio) {
             console.error("Error: search-input, search-button, or .recent-list was not found in the DOM.");
             return;
+        }
+
+        if (!this.modal || !this.closeButton || !this.modalImage) {
+            console.error("Error: Modal elements not found in the DOM.");
         }
 
         this.loadAllMissions();
@@ -41,9 +50,86 @@ export default class searchUI {
         this.searchInput.addEventListener("keydown", this.handleEnterKey.bind(this));
         this.clearButton.addEventListener("click", this.handleClearSearches.bind(this));
         this.searchInput.addEventListener("input", this.handleInputSuggestions.bind(this));
-
+        this.setupModal();
         this.missionRadio.addEventListener("change", this.handleSearchTypeChange.bind(this));
         this.mediaRadio.addEventListener("change", this.handleSearchTypeChange.bind(this));
+    }
+
+    setupModal() {
+        this.closeButton.addEventListener("click", () => {
+            this.modal.style.display = "none";
+        });
+
+        window.addEventListener("click", (event) => {
+            if (event.target === this.modal) {
+                this.modal.style.display = "none";
+            }
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && this.modal.style.display === "block") {
+                this.modal.style.display = "none";
+            }
+        });
+
+        this.highResButton.addEventListener("click", this.handleHighResRequest.bind(this));
+    }
+
+    openModal(imageUrl, title, nasaId) {
+        if (!this.modal) return;
+
+        this.modalImage.src = imageUrl;
+        this.modalCaption.innerHTML = `<strong>${title}</strong>`;
+
+        if (nasaId) {
+            this.highResButton.style.display = "block";
+            this.highResButton.disabled = false;
+            this.highResButton.textContent = "View High Resolution Version";
+
+            this.highResButton.dataset.nasaId = nasaId;
+        } else {
+            this.highResButton.style.display = "none";
+        }
+
+        this.modal.style.display = "block";
+    }
+
+    /**
+     * Handles the user's request to obtain the high-resolution image.
+     */
+    async handleHighResRequest(event) {
+        const button = event.target;
+        const nasaId = button.dataset.nasaId;
+
+        if (!nasaId) return;
+
+        button.disabled = true;
+        button.textContent = "Cargando HR...";
+
+        try {
+            const highResUrl = await this.mediaManager.getHighResImageUrl(nasaId);
+
+            if (highResUrl) {
+                this.modalImage.src = highResUrl;
+                button.textContent = "High Resolution Loaded";
+                button.style.backgroundColor = "#4CAF50";
+
+                const link = document.createElement('a');
+                link.href = highResUrl;
+                link.textContent = "Open in New Tab";
+                link.target = "_blank";
+                this.modalCaption.appendChild(link);
+
+            } else {
+                button.textContent = "HR not available";
+                button.style.backgroundColor = "#f44336";
+            }
+        } catch (error) {
+            console.error("Error loading HR image:", error);
+            button.textContent = "Loading Error";
+            button.style.backgroundColor = "#f44336";
+        }
+
     }
 
     handleSearchTypeChange() {
@@ -320,28 +406,70 @@ export default class searchUI {
     renderMediaResults(results) {
         this.resultsContainer.innerHTML = '';
         if (results.length === 0) {
-            this.resultsContainer.innerHTML = '<p>No multimedia results found.</p>';
+            this.resultsContainer.innerHTML = '<p>No se encontraron resultados multimedia.</p>';
             return;
         }
 
-        const list = document.createElement('ul');
+        const gridContainer = document.createElement('div');
+        gridContainer.className = 'media-results-grid';
+
         results.forEach(item => {
+            const nasaId = item.data[0].nasa_id;
+
             if (item.success === false) return;
 
-            const listItem = document.createElement('li');
+            const card = document.createElement('div');
+            card.className = 'media-item-card';
+
             const title = item.data[0].title;
             const mediaType = item.data[0].media_type;
+            const dateCreated = item.data[0].date_created ? new Date(item.data[0].date_created).toLocaleDateString() : 'Date unknown';
 
-            listItem.innerHTML = `
-                <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
-                    <h4>${title} (${mediaType})</h4>
-                    ${mediaType === 'image' && item.image_url ? `<img src="${item.image_url}" alt="${title}" style="max-width: 200px; display: block;">` : ''}
-                    ${mediaType === 'video' && item.poster_url ? `<img src="${item.poster_url}" alt="Poster" style="max-width: 200px; display: block;">` : 'Video URL Processed.'}
+            let visualUrl = null;
+            let mediaHTML = '';
+
+            if (mediaType === 'image' && item.image_url) {
+                mediaHTML = `<img src="${item.image_url}" alt="${title}" loading="lazy" class="media-preview-img">`;
+                visualUrl = item.image_url; // thumbnail URL
+            } else if (mediaType === 'video' && item.poster_url) {
+                mediaHTML = `
+                    <div class="media-preview-wrapper video-preview-wrapper">
+                        <img src="${item.poster_url}" alt="Poster para ${title}" loading="lazy" class="media-preview-img">
+                        <div class="video-play-icon">▶</div>
+                    </div>
+                `;
+                visualUrl = item.poster_url;
+            } else if (mediaType === 'video' && item.video_url) {
+                mediaHTML = `<div class="video-placeholder">Video content available.</div>`;
+            }
+
+            card.innerHTML = `
+                <div class="media-visual-area">
+                    ${mediaHTML}
+                </div>
+                <div class="media-info-overlay">
+                    <h5 class="media-title">${title}</h5>
+                    <p class="media-meta">${mediaType.toUpperCase()} | ${dateCreated}</p>
                 </div>
             `;
-            list.appendChild(listItem);
+
+            if (mediaType === 'image' && visualUrl) {
+                card.addEventListener('click', () => {
+                    this.openModal(visualUrl, title);
+                });
+            } else if (mediaType === 'video') {
+                // TODO: video render player
+            }
+
+            if (mediaType === 'image' && visualUrl) {
+                card.addEventListener('click', () => {
+                    this.openModal(visualUrl, title, nasaId);
+                });
+            }
+
+            gridContainer.appendChild(card);
         });
-        this.resultsContainer.appendChild(list);
+        this.resultsContainer.appendChild(gridContainer);
     }
 
     renderMissionResults(missionData) {
