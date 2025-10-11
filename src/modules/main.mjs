@@ -1,10 +1,13 @@
 import '../styles/style.css'
+import searchUI from './searchUI.mjs'
+import RenderUIX from './renderUIX.mjs'
 import getAPOD from './getAPOD.mjs'
 import getNASAMedia from './getNASAMedia.mjs'
-//import getOSDRMissions from './getOSDRMissions.mjs'
-import searchUI from './searchUI.mjs'
 
-document.querySelector('#app').innerHTML = `
+const uiRender = new RenderUIX();
+uiRender.renderLayout();
+
+document.querySelector('#main-content').innerHTML = `
   <div class="search-options">
     <input type="radio" id="searchTypeMission" name="searchType" value="mission" checked>
     <label for="searchTypeMission">NASA Missions</label>
@@ -17,8 +20,9 @@ document.querySelector('#app').innerHTML = `
   <button id="searchButton">Search</button>
   <button id="clearButton">Clear History</button>
 
-  <div class="suggest-list"></div> <div class="recent-list"></div> <div id="results"></div>
-
+  <div class="suggest-list"></div>
+  <div class="recent-list"></div>
+  <div id="results"></div>
   <div id="pageControls"></div>
 `
 
