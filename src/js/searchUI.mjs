@@ -1,23 +1,33 @@
 import searchEngine from "./searchEngine.mjs";
 import getOSDRMissions from "./getOSDRMissions.mjs";
+import getNASAMedia from "./getNASAMedia.mjs";
 
 export default class searchUI {
     constructor() {
         this.searchManager = new searchEngine();
         this.missionManager = new getOSDRMissions();
+        this.mediaManager = new getNASAMedia();
         this.allMissions = [];
+        this.currentPage = 1;
+        this.currentMediaQuery = "";
+        this.totalPages = 0;
+        this.pageSize = 10;
 
         this.fetchData = async (query) => {
             return await this.missionManager.searchMission(query);
         }
 
+        this.paginationContainer = document.querySelector("#pageControls");
         this.searchInput = document.querySelector("#searchInput");
         this.searchButton = document.querySelector("#searchButton");
         this.listContainer = document.querySelector(".recent-list");
-        this.clearButton = document.querySelector("#clearButton");
         this.suggestList = document.querySelector(".suggest-list");
+        this.clearButton = document.querySelector("#clearButton");
+        this.missionRadio = document.querySelector("#searchTypeMission");
+        this.mediaRadio = document.querySelector("#searchTypeMedia");
+        this.resultsContainer = document.querySelector("#results");
 
-        if (!this.searchInput || !this.searchButton || !this.listContainer || !this.clearButton || !this.suggestList) {
+        if (!this.searchInput || !this.searchButton || !this.listContainer || !this.clearButton || !this.suggestList || !this.resultsContainer || !this.missionRadio || !this.mediaRadio) {
             console.error("Error: search-input, search-button, or .recent-list was not found in the DOM.");
             return;
         }
@@ -31,9 +41,43 @@ export default class searchUI {
         this.searchInput.addEventListener("keydown", this.handleEnterKey.bind(this));
         this.clearButton.addEventListener("click", this.handleClearSearches.bind(this));
         this.searchInput.addEventListener("input", this.handleInputSuggestions.bind(this));
+
+        this.missionRadio.addEventListener("change", this.handleSearchTypeChange.bind(this));
+        this.mediaRadio.addEventListener("change", this.handleSearchTypeChange.bind(this));
+    }
+
+    handleSearchTypeChange() {
+        this.searchInput.value = "";
+        this.resultsContainer.innerHTML = "";
+        this.suggestList.innerHTML = "";
+
+        const currentType = this.getCurrentSearchType();
+
+        if (currentType == "media") {
+            this.listContainer.innerHTML = "";
+            console.log("Search mode changed to NASA Media");
+        } else {
+            this.renderRecentSearches(this.searchManager.getRecentSearches());
+            console.log("Search mode changed to NASA Missions. Autocomplete enabled.")
+        }
+    }
+
+    getCurrentSearchType() {
+        if (this.missionRadio.checked) {
+            return "mission";
+        }
+        if (this.mediaRadio.checked) {
+            return "media";
+        }
+        return "mission"; // Default
     }
 
     handleInputSuggestions() {
+        if (this.getCurrentSearchType() !== 'mission') {
+            this.suggestList.innerHTML = "";
+            return;
+        }
+
         const query = this.searchInput.value.trim();
 
         if (query.length === 0) {
@@ -49,7 +93,7 @@ export default class searchUI {
         const suggestions = this.allMissions
             .filter(mission => mission.identifier && mission.identifier.toLowerCase().includes(lowerQuery))
             .slice(0, 5);
-        
+
         this.renderSuggestions(suggestions);
     }
 
@@ -82,37 +126,29 @@ export default class searchUI {
             console.log("Loading all missions to autocomplete");
             const data = await this.missionManager.getAllMissions();
 
-            // 1. Accedemos al array correcto (data.data) y nos aseguramos de que sea un array
             const missionsArray = Array.isArray(data.data) ? data.data : [];
 
-            // 2. Mapeamos la lista para extraer el identificador de la URL 'mission'
             this.allMissions = missionsArray.map(item => {
-                // Ejemplo de URL: https://osdr.nasa.gov/geode-py/ws/api/mission/VSS%20Unity
                 const url = item.mission || '';
 
-                // Extraemos la última parte después de '/mission/'
                 const parts = url.split('/mission/');
                 let identifier = parts.length > 1 ? parts[parts.length - 1] : '';
 
-                // Decodificamos la URI para que "VSS%20Unity" se convierta en "VSS Unity"
                 try {
                     identifier = decodeURIComponent(identifier);
                 } catch (e) {
                     console.warn("Could not decode URI component:", identifier);
                 }
 
-                // Devolvemos el objeto en un formato que el filtro pueda usar
                 return { identifier: identifier };
-            }).filter(item => item.identifier.length > 0); // Filtramos cualquier elemento sin identificador
+            }).filter(item => item.identifier.length > 0);
 
             console.log(`[ALL MISSIONS] count ${this.allMissions.length} missions.`);
 
-            // Renderizamos el historial solo después de haber inicializado this.allMissions
             this.renderRecentSearches(this.searchManager.getRecentSearches());
 
         } catch (error) {
             console.error("Error loading all missions", error);
-            // Si hay un error, dejamos this.allMissions como [] (inicializado en el constructor)
         }
     }
 
@@ -146,31 +182,123 @@ export default class searchUI {
         }
     }
 
-    async handleSearch() {
+    async handleSearch(page = 1) {
         const query = this.searchInput.value.trim();
+        const searchType = this.getCurrentSearchType();
 
-        if (!query) {
-            return;
-        }
+        if (!query) return;
 
         this.toggleLoadingState(true);
+        this.resultsContainer.innerHTML = "";
+
+        /**
+         * TODO
+         */  
+        //this.resultsContainer.innerHTML = this.renderSkeleton(this.pageSize);
 
         try {
-            const data = await this.fetchData(query);
+            let data;
 
-            console.log("[NASA MISSION DATA]", data);
+            if (searchType === 'mission') {
+                data = await this.missionManager.searchMission(query);
+
+                if (!data || Object.keys(data).length === 0 || data.error) {
+                    const suggestions = this.getFuzzyMissionSuggestions(query);
+
+                    if (suggestions.length > 0) {
+                        this.renderFuzzySuggestions(query, suggestions);
+                    } else {
+                        this.renderFuzzySuggestions(query, []);
+                    }
+                    return;
+                }
+
+                this.renderMissionResults(data);
+
+            } else if (searchType === "media") {
+
+                if (this.currentMediaQuery !== query) {
+                    this.currentPage = 1;
+                    this.currentMediaQuery = query
+                }
+
+                const pageToSearch = page;
+
+                const mediaResponse = await this.mediaManager.search(
+                    query,
+                    "image,video",
+                    this.pageSize,
+                    pageToSearch
+                );
+
+                data = mediaResponse.results;
+
+                this.currentPage = pageToSearch;
+                this.totalPages = Math.ceil(mediaResponse.totalHits / this.pageSize)
+                console.log("[NASA MEDIA DATA]", data);
+                this.renderMediaResults(data);
+                this.renderPaginationControls();
+            }
 
             this.searchManager.addSearch(query);
-            this.renderRecentSearches(this.searchManager.getRecentSearches());
+            if (searchType === 'mission') {
+                this.renderRecentSearches(this.searchManager.getRecentSearches());
+            }
 
         } catch (error) {
-            console.error("Search failed:", error);
+            console.error("Search failed:", error); 
+
+            if (searchType === 'mission') {
+                this.resultsContainer.innerHTML = `<p class="error">❌ Connection or API error. ${error.message}</p>`;
+                this.renderAllMissionsCatalog();
+            } else {
+                this.resultsContainer.innerHTML = `<p class="error">❌ Error while searching ${searchType}: ${error.message}</p>`;
+            }
 
         } finally {
             this.toggleLoadingState(false);
-            this.searchInput.value = '';
+            //this.searchInput.value = '';
             this.suggestList.innerHTML = "";
         }
+    }
+
+    renderPaginationControls() {
+        if (this.getCurrentSearchType() !== "media" || this.totalPages <= 1) {
+            this.paginationContainer.innerHTML = "";
+            return;
+        }
+
+        this.paginationContainer.innerHTML = "";
+        const controls = document.createElement("div");
+        controls.className = "pagination-buttons";
+
+        //previous button
+        const prevButton = document.createElement("button");
+        prevButton.textContent = "◀ Previous";
+        prevButton.disabled = this.currentPage === 1;
+        prevButton.addEventListener("click", () => {
+            if (this.currentPage > 1) {
+                this.handleSearch(this.currentPage - 1);
+            }
+        });
+        controls.appendChild(prevButton);
+
+        const status = document.createElement("span");
+        status.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
+        controls.appendChild(status);
+
+        //next button
+        const nextButton = document.createElement("button");
+        nextButton.textContent = "Next ▶";
+        nextButton.disabled = this.currentPage >= this.totalPages;
+        nextButton.addEventListener("click", () => {
+            if (this.currentPage < this.totalPages) {
+                this.handleSearch(this.currentPage + 1);
+            }
+        });
+        controls.appendChild(nextButton);
+
+        this.paginationContainer.appendChild(controls);
     }
 
     renderRecentSearches(searches) {
@@ -187,5 +315,240 @@ export default class searchUI {
 
             this.listContainer.appendChild(listItem);
         });
+    }
+
+    renderMediaResults(results) {
+        this.resultsContainer.innerHTML = '';
+        if (results.length === 0) {
+            this.resultsContainer.innerHTML = '<p>No multimedia results found.</p>';
+            return;
+        }
+
+        const list = document.createElement('ul');
+        results.forEach(item => {
+            if (item.success === false) return;
+
+            const listItem = document.createElement('li');
+            const title = item.data[0].title;
+            const mediaType = item.data[0].media_type;
+
+            listItem.innerHTML = `
+                <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
+                    <h4>${title} (${mediaType})</h4>
+                    ${mediaType === 'image' && item.image_url ? `<img src="${item.image_url}" alt="${title}" style="max-width: 200px; display: block;">` : ''}
+                    ${mediaType === 'video' && item.poster_url ? `<img src="${item.poster_url}" alt="Poster" style="max-width: 200px; display: block;">` : 'Video URL Processed.'}
+                </div>
+            `;
+            list.appendChild(listItem);
+        });
+        this.resultsContainer.appendChild(list);
+    }
+
+    renderMissionResults(missionData) {
+        this.resultsContainer.innerHTML = '';
+
+        if (!missionData || Object.keys(missionData).length === 0) {
+            this.resultsContainer.innerHTML = '<p>Mission not found. Check the mission name (case sensitive) or use autocomplete.</p>';
+            return;
+        }
+
+        /**
+         * TODO
+         */
+        // ---- BASIC RENDER ----
+
+        const card = document.createElement('div');
+        card.classList.add('mission-card-basic');
+
+        const identifier = missionData.identifier || "NA";
+        const startDate = missionData.startDate || "Unknown";
+        const endDate = missionData.endDate || "Current";
+        const aliases = (missionData.aliases && missionData.aliases.join(", ") || "None");
+        const vehicleName = this.getVehicleName(missionData.vehicle);
+        const gldsStudiesCount = missionData.parents?.GLDS_Study?.length || 0;
+
+        card.innerHTML = `
+        <h3>Mission NASA: ${identifier}</h3>
+        <p><strong>ID: </strong> ${missionData.id || "NA"}</p>
+        <p><strong>Duration: </strong> ${startDate} - ${endDate}</p>
+        <p><strong>Aliases: </strong> ${aliases}</p>
+
+        <div class="mission-details">
+            <p>Vehicle: ${vehicleName}</p>
+            <p>Related GLDS studies: ${gldsStudiesCount}</p>
+        </div>
+
+        <p class="data-status"> OSDR mission data successfully loaded.</p> 
+        `;
+
+        this.resultsContainer.appendChild(card);
+    }
+
+    /**
+     * Extracts the vehicle name from the API URL.
+     * @param {Object} vehicleObj - The missionData.vehicle object.
+     * @returns {string} The vehicle name.
+     */
+    getVehicleName(vehicleObj) {
+        const url = vehicleObj?.vehicle;
+        if (!url || typeof url !== 'string') {
+            return "Unspecified";
+        }
+
+        const parts = url.split('/');
+        let name = parts[parts.length - 1];
+
+        try {
+            name = decodeURIComponent(name);
+        } catch (e) {
+            console.warn("Could not decode URI component:", name);
+        }
+
+        return name || "Unspecified";
+    }
+
+    /**
+     * Renders the complete list of missions grouped alphabetically.
+     */
+    renderAllMissionsCatalog() {
+        this.resultsContainer.innerHTML = '';
+
+        if (!Array.isArray(this.allMissions) || this.allMissions.length === 0) {
+            this.resultsContainer.innerHTML = '<p>The mission catalog could not be loaded.</p>';
+            return;
+        }
+
+        const groups = this.allMissions.reduce((acc, mission) => {
+            const identifier = mission.identifier;
+            if (!identifier) return acc;
+
+            const firstLetter = identifier.charAt(0).toUpperCase();
+            if (!acc[firstLetter]) {
+                acc[firstLetter] = [];
+            }
+            acc[firstLetter].push(identifier);
+            return acc;
+        }, {});
+
+        const sortedLetters = Object.keys(groups).sort();
+        const catalogContainer = document.createElement('div');
+        catalogContainer.className = 'mission-catalog';
+
+        catalogContainer.innerHTML = '<h2>Complete Catalog of NASA Missions 🚀</h2>';
+
+        sortedLetters.forEach(letter => {
+            groups[letter].sort();
+
+            const letterSection = document.createElement('section');
+            letterSection.innerHTML = `
+                <h3>${letter}.</h3>
+                <ul class="mission-list-group">
+                    ${groups[letter].map(name =>
+                `<li data-mission-id="${name.replace(/\s/g, '_')}">${name}</li>`
+            ).join('')}
+                </ul>
+            `;
+            catalogContainer.appendChild(letterSection);
+        });
+
+        this.resultsContainer.appendChild(catalogContainer);
+
+        // Add the Click Listener
+        this.addCatalogClickListener(catalogContainer);
+    }
+
+    /**
+     * Add a listener so that when you click on the name of a mission, 
+     * a search is initiated.
+     */
+    addCatalogClickListener(container) {
+        container.querySelectorAll('li').forEach(item => {
+            item.addEventListener('click', (event) => {
+                const missionName = event.target.textContent;
+
+                this.searchInput.value = missionName;
+                this.handleSearch();
+
+                this.searchInput.focus();
+            });
+        });
+    }
+
+    /**
+     * Search for missions that vaguely match the query, using the cache.
+     * @param {string} query - The user's search term.
+     * @returns {string[]} An array of suggested mission identifiers.
+     */
+    getFuzzyMissionSuggestions(query) {
+        if (!Array.isArray(this.allMissions) || this.allMissions.length === 0) {
+            return [];
+        }
+
+        const lowerQuery = query.trim().toLowerCase();
+
+        // Suggestion Criteria:
+        // 1. Word stem match (most relevant)
+        const startsWith = this.allMissions
+            .filter(mission => mission.identifier.toLowerCase().startsWith(lowerQuery))
+            .map(mission => mission.identifier);
+
+        // 2. Partial match anywhere (less relevant)
+        const includes = this.allMissions
+            .filter(mission => mission.identifier.toLowerCase().includes(lowerQuery) &&
+                !startsWith.includes(mission.identifier)) // Avoid duplicates
+            .map(mission => mission.identifier);
+
+        // Combine, limiting the total to a reasonable number (e.g., 10)
+        return [...startsWith, ...includes].slice(0, 10);
+    }
+
+    /**
+     * Render nearby search suggestions.
+     * @param {string} originalQuery - The original query failed.
+     * @param {string[]} suggestions - List of suggested mission names.
+     */
+    renderFuzzySuggestions(originalQuery, suggestions) {
+        this.resultsContainer.innerHTML = '';
+
+        const container = document.createElement('div');
+        container.className = 'fuzzy-suggestions-box';
+
+        if (suggestions.length === 0) {
+            // 🎯 CASE: ZERO CLOSE MATCHES
+
+            container.innerHTML = `
+                <p>😔 **No exact or close matches were found** for **"${originalQuery}"**.</p>
+                <p>Please check your spelling or refer to the **Complete Mission Catalog** below to explore them all.</p>
+            `;
+            this.resultsContainer.appendChild(container);
+
+            this.renderAllMissionsCatalog();
+            return;
+        }
+
+        // 🎯 CASE: THERE ARE SUGGESTIONS
+        container.innerHTML = `
+            <p>🤔 Did you mean any of these? Click to search:</p>
+            <ul class="fuzzy-list">
+                ${suggestions.map(name =>
+            `<li data-mission-name="${name}">${name}</li>`
+        ).join('')}
+            </ul>
+            <p class="catalog-link">Or consult the complete catalog to see all the missions.</p>
+        `;
+        this.resultsContainer.appendChild(container);
+
+        container.querySelectorAll('li').forEach(item => {
+            item.addEventListener('click', () => {
+                this.searchInput.value = item.dataset.missionName;
+                this.handleSearch();
+            });
+        });
+
+        // 🎯 In this case (there are suggestions), we do want the button to display the catalog.
+        const showCatalogButton = document.createElement('button');
+        showCatalogButton.textContent = 'Ver Catálogo Completo';
+        showCatalogButton.addEventListener('click', this.renderAllMissionsCatalog.bind(this));
+        container.appendChild(showCatalogButton);
     }
 }

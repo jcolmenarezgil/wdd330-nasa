@@ -18,6 +18,8 @@ document.querySelector('#app').innerHTML = `
   <button id="clearButton">Clear History</button>
 
   <div class="suggest-list"></div> <div class="recent-list"></div> <div id="results"></div>
+
+  <div id="pageControls"></div>
 `
 
 const uiManager = new searchUI();

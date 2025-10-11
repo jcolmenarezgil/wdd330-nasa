@@ -9,57 +9,70 @@ const parseMediaType = (mediaTypeString, defaultTypes = ["image", "video"]) => {
     if (!mediaTypeString) {
         return defaultTypes;
     }
-
-    if (!mediaTypeString.includes(',')) {
-        return [mediaTypeString];
-    }
-
-    return [mediaTypeString];
-
+    return mediaTypeString.split(',').map(type => type.trim());
 }
 
 export default class getNASAMedia {
-    constructor(query, description, mediaTypes = "image,video", page = 1, page_size = 4) {
+    constructor() {
         this.URL = "https://images-api.nasa.gov";
-        this.query = query;
-        this.description = description;
-        this.media_type = parseMediaType(mediaTypes);
-        this.page = page;
-        this.page_size = page_size;
+        this.lastQuery = {};
     }
 
-    async init() {
+    /**
+     * Search in NASA media library
+     * @param { string } query - Search term.
+     * @param { string } mediaType - Source types (ex. "image,video")
+     * @param { number } pageSize - result per page.
+     * @param { number } page - The page to request.
+     * @returns {Promise<Object[]} - An array with process results */
+    async search(query, mediaType = "image,video", pageSize = 10, page = 1) {
+        if (!query || query.trim() === '') return { results: [], totalHits: 0, currentPage: 1 };
+
+        this.media_type = parseMediaType(mediaType);
+        this.query = query;
+        this.page_size = pageSize;
+        this.page = page;
+
         try {
             const responses = await this.getAllMedia();
             const results = [];
+            let totalHits = 0;
 
             for (const response of responses) {
-                if (!response.ok) {
+                if (response.ok) {
+                    const data = await response.json();
+
+                    if (data.collection.metadata && data.collection.metadata.total_hits) {
+                        totalHits = Math.max(totalHits, data.collection.metadata.total_hits);
+                    }
+
+                    results.push({ success: true, data: data });
+                } else {
                     const errorBody = await response.json().catch(() => ({}));
                     const status = response.status;
                     const errorMessage = errorBody.message || errorBody.reason || response.statusText;
-
                     console.error(`Error HTTP ${status} from ${response.url}: ${errorMessage}`);
                     results.push({ success: false, status: status, message: errorMessage, url: response.url });
                     continue;
                 }
-                const data = await response.json();
-                results.push({ success: true, data: data });
             }
 
-            const finalData = await this.processResult(results);
-            console.log("Final data:", finalData);
-            return finalData;
+            const finalResults = await this.processResult(results);
 
+            return {
+                results: finalResults,
+                totalHits: totalHits,
+                currentPage: this.page,
+                pageSize: this.page_size,
+            }
         } catch (error) {
-            console.error(`an error has ocurred, ${error.message}`)
-            return { success: false, message: error.message };
+            console.error(`An error has occurred in media search, ${error.message}`)
+            return { success: [], totalHits: 0, currentPage: 1, pageSize: this.page_size };
         }
     }
 
     async getAllMedia() {
         const query = sanitizaSearchQuery(this.query);
-        const description = this.description;
         const page = this.page;
         const page_size = this.page_size;
 
@@ -67,9 +80,8 @@ export default class getNASAMedia {
             const urlObj = new URL(this.URL + "/search");
             urlObj.searchParams.set("q", query);
             urlObj.searchParams.set("media_type", mediaType);
-            urlObj.searchParams.set("description", description);
-            urlObj.searchParams.set("page", page);
-            urlObj.searchParams.set("page_size", page_size);
+            urlObj.searchParams.set("page", this.page);
+            urlObj.searchParams.set("page_size", this.page_size);
 
             return await fetch(urlObj.toString());
         });
@@ -90,7 +102,7 @@ export default class getNASAMedia {
         const videoLinks = data.collection.items
             .map(item => item.href)
             .filter(href => href.endsWith('.mp4') || href.endsWith('.webm') || href.endsWith('.mov'));
-        
+
         return videoLinks;
     }
 
@@ -108,7 +120,7 @@ export default class getNASAMedia {
             for (const item of items) {
                 const nasaId = item.data[0]["nasa_id"];
                 const mediaType = item.data[0]["media_type"];
-            
+
                 if (mediaType === "video") {
                     try {
                         const videoUrls = await this.getAssetManifest(nasaId);
@@ -124,6 +136,11 @@ export default class getNASAMedia {
                         console.error(`Error fetching asset manifest for ${nasaId}: ${e.message}`);
                         item.video_url = null;
                     }
+                }
+
+                else if (mediaType === "image") {
+                    const previewLink = item.links.find(l => l.rel === "preview");
+                    item.image_url = previewLink ? previewLink.href : null;
                 }
                 finalResults.push(item);
             }
