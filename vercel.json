@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/nasa-api/:path*",
+      "destination": "https://osdr.nasa.gov/geode-py/ws/:path*"
+    }
+  ]
+}
