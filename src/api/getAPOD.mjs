@@ -5,21 +5,22 @@ export default class getAPOD {
         this.count = 0;
     }
 
-    async init() {
+    async getAPODData() {
         try {
-            const response = await this.getLastAPOD();
-            console.log(response);
-
-            const responseByDate = await this.getAPODByDate("2025/01/01");
-            console.log(responseByDate);
-
-            const responseRandom = await this.getRandomAPOD();
-            console.log(responseRandom);
+            const response = await fetch(this.URL + "?api_key=" + this.API_KEY);
+            if (!response.ok) {
+                // Throw error if response is not 200 (e.g., 429 rate limit)
+                throw new Error(`APOD fetch failed with status: ${response.status}`);
+            }
+            const data = await response.json();
+            return data;
         } catch (error) {
-            console.log("An error has ocurred, " + error)
+            console.error("An error occurred while fetching APOD:", error);
+            // Return null or fallback data on failure
+            return null;
         }
     }
-    
+
     async getLastAPOD() {
         const response = await fetch(this.URL + "?api_key=" + this.API_KEY);
         const data = await response.json();

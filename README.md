@@ -1,8 +1,8 @@
-# Final Project WDD330 - *UniversExperience* using *NASA API*
+# Final Project WDD330 - *Atlas X* using *NASA API*
 
 ### Descripción
 
-NASA UniversExperience is an immersive web application that allows you to explore the vastness of outer space from the comfort of your screen. Inspired by NASA's image and video gallery, this project aims to awaken curiosity and wonder for creation, making knowledge about the universe accessible to everyone.
+NASA Atlas X is an immersive web application that allows you to explore the vastness of outer space from the comfort of your screen. Inspired by NASA's image and video gallery, this project aims to awaken curiosity and wonder for creation, making knowledge about the universe accessible to everyone.
 
 The application is designed to be enjoyed by an audience of all ages, from children to seniors, offering a seamless and adaptive user experience on any device, whether it's a desktop computer or a mobile phone.
 

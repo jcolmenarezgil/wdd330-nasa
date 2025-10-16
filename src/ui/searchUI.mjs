@@ -1,6 +1,6 @@
-import searchEngine from "./searchEngine.mjs";
-import getOSDRMissions from "./getOSDRMissions.mjs";
-import getNASAMedia from "./getNASAMedia.mjs";
+import searchEngine from "../core/searchEngine.mjs";
+import getOSDRMissions from "../api/getOSDRMissions.mjs";
+import getNASAMedia from "../api/getNASAMedia.mjs";
 
 export default class searchUI {
     constructor() {
@@ -28,11 +28,13 @@ export default class searchUI {
         this.resultsContainer = document.querySelector("#results");
         this.modal = document.querySelector("#imageModal");
         this.closeButton = document.querySelector(".close-button");
+        this.modalContent = document.querySelector(".modal-content");
         this.modalImage = document.querySelector("#modalImage");
         this.modalCaption = document.querySelector("#modalCaption");
         this.highResButton = document.querySelector("#highResButton");
+        this.apodContainer = document.querySelector("#apod-container");
 
-        if (!this.searchInput || !this.searchButton || !this.listContainer || !this.clearButton || !this.suggestList || !this.resultsContainer || !this.missionRadio || !this.mediaRadio) {
+        if (!this.searchInput || !this.searchButton || !this.listContainer || !this.clearButton || !this.suggestList || !this.resultsContainer || !this.missionRadio || !this.mediaRadio || !this.apodContainer) {
             console.error("Error: search-input, search-button, or .recent-list was not found in the DOM.");
             return;
         }
@@ -45,53 +47,137 @@ export default class searchUI {
     }
 
     init() {
-        this.renderRecentSearches(this.searchManager.getRecentSearches());
+        this.updateClearButtonState(); 
         this.searchButton.addEventListener("click", this.handleSearch.bind(this));
         this.searchInput.addEventListener("keydown", this.handleEnterKey.bind(this));
         this.clearButton.addEventListener("click", this.handleClearSearches.bind(this));
         this.searchInput.addEventListener("input", this.handleInputSuggestions.bind(this));
         this.setupModal();
+        this.searchInput.addEventListener('focus', () => {
+            if (this.searchInput.value.length > 0) {
+                this.showDropdown(this.suggestList);
+            } else {
+                this.renderRecentSearches(this.searchManager.getRecentSearches());
+                this.showDropdown(this.listContainer);
+            }
+        });
+        this.searchInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                this.hideDropdown(this.suggestList);
+                this.hideDropdown(this.listContainer);
+                this.updateClearButtonState(); 
+            }, 200);
+        });
         this.missionRadio.addEventListener("change", this.handleSearchTypeChange.bind(this));
         this.mediaRadio.addEventListener("change", this.handleSearchTypeChange.bind(this));
     }
 
     setupModal() {
-        this.closeButton.addEventListener("click", () => {
+        const closeModal = () => {
             this.modal.style.display = "none";
-        });
+
+            const videoPlayer = this.modal.querySelector(".modal-video-player");
+            if (videoPlayer) {
+                videoPlayer.pause();
+                videoPlayer.currentTime = 0;
+                videoPlayer.remove();
+            }
+
+            this.highResButton.textContent = "View High Resolution Version";
+            this.highResButton.style.backgroundColor = "";
+        }
+
+        this.closeButton.addEventListener("click", closeModal);
 
         window.addEventListener("click", (event) => {
             if (event.target === this.modal) {
-                this.modal.style.display = "none";
+                closeModal();
             }
         });
 
         document.addEventListener("keydown", (event) => {
             if (event.key === "Escape" && this.modal.style.display === "block") {
-                this.modal.style.display = "none";
+                closeModal();
             }
         });
 
         this.highResButton.addEventListener("click", this.handleHighResRequest.bind(this));
     }
 
-    openModal(imageUrl, title, nasaId) {
+    openModal(itemData) { 
         if (!this.modal) return;
 
-        this.modalImage.src = imageUrl;
-        this.modalCaption.innerHTML = `<strong>${title}</strong>`;
+        this._renderModalContent(itemData);
+        this.modal.style.display = "block";
+    }
 
-        if (nasaId) {
-            this.highResButton.style.display = "block";
-            this.highResButton.disabled = false;
-            this.highResButton.textContent = "View High Resolution Version";
+    /**
+     * Renders the appropriate content (Image or Video Player) inside the modal.
+     * @param {object} itemData - The processed media item data.
+     */
+    _renderModalContent(itemData) {
+        const mediaType = itemData.data[0].media_type;
+        const title = itemData.data[0].title;
+        const nasaId = itemData.data[0].nasa_id;
 
-            this.highResButton.dataset.nasaId = nasaId;
-        } else {
-            this.highResButton.style.display = "none";
+        const existingVideo = this.modal.querySelector('.modal-video-player');
+        if (existingVideo) {
+            existingVideo.remove();
         }
 
-        this.modal.style.display = "block";
+        this.modalCaption.querySelectorAll('a').forEach(a => a.remove());
+
+        this.modalCaption.innerHTML = `<strong>${title}</strong>`;
+
+        if (mediaType === 'image') {
+            const imageUrl = itemData.image_url;
+
+            this.modalImage.style.display = 'block';
+            this.modalImage.src = imageUrl;
+
+            this.highResButton.style.display = 'block';
+            this.highResButton.disabled = false;
+            this.highResButton.textContent = "View High Resolution Version";
+            this.highResButton.dataset.nasaId = nasaId;
+            this.highResButton.style.backgroundColor = '';
+
+        } else if (mediaType === 'video') {
+            const videoUrl = itemData.video_url;
+            const posterUrl = itemData.poster_url;
+            const captionUrl = itemData.caption_url;
+
+            if (!videoUrl) {
+                this.modalCaption.innerHTML = `<strong>${title}</strong><p class="error">Error: Video URL not found in the manifest.</p>`;
+                this.modalImage.style.display = 'none';
+                this.highResButton.style.display = 'none';
+                return;
+            }
+
+            this.modalImage.style.display = 'none'; 
+            this.highResButton.style.display = 'none'; 
+
+            const videoElement = document.createElement('video');
+            videoElement.controls = true;
+            videoElement.autoplay = true;
+            videoElement.poster = posterUrl || '';
+            videoElement.className = 'modal-video-player';
+
+            const sourceElement = document.createElement('source');
+            sourceElement.src = videoUrl;
+            sourceElement.type = 'video/mp4';
+            videoElement.appendChild(sourceElement);
+
+            if (captionUrl) {
+                const trackElement = document.createElement('track');
+                trackElement.kind = 'captions';
+                trackElement.src = captionUrl;
+                trackElement.srclang = 'en';
+                trackElement.label = 'English';
+                videoElement.appendChild(trackElement);
+            }
+
+            this.modalContent.insertBefore(videoElement, this.modalCaption);
+        }
     }
 
     /**
@@ -104,7 +190,7 @@ export default class searchUI {
         if (!nasaId) return;
 
         button.disabled = true;
-        button.textContent = "Cargando HR...";
+        button.textContent = "Loading High Resolution...";
 
         try {
             const highResUrl = await this.mediaManager.getHighResImageUrl(nasaId);
@@ -114,10 +200,14 @@ export default class searchUI {
                 button.textContent = "High Resolution Loaded";
                 button.style.backgroundColor = "#4CAF50";
 
+                this.modalCaption.querySelectorAll('a').forEach(a => a.remove());
+
                 const link = document.createElement('a');
                 link.href = highResUrl;
-                link.textContent = "Open in New Tab";
+                link.style.color = "#d1d415ff";
+                link.textContent = "Open Original in New Tab";
                 link.target = "_blank";
+                link.style.marginLeft = '10px';
                 this.modalCaption.appendChild(link);
 
             } else {
@@ -136,13 +226,18 @@ export default class searchUI {
         this.searchInput.value = "";
         this.resultsContainer.innerHTML = "";
         this.suggestList.innerHTML = "";
+        this.totalPages = 0;
+        this.renderPaginationControls();
+        this.updateClearButtonState();
 
         const currentType = this.getCurrentSearchType();
 
         if (currentType == "media") {
+            this.toggleApodSize(false);
             this.listContainer.innerHTML = "";
             console.log("Search mode changed to NASA Media");
         } else {
+            this.toggleApodSize(false);
             this.renderRecentSearches(this.searchManager.getRecentSearches());
             console.log("Search mode changed to NASA Missions. Autocomplete enabled.")
         }
@@ -150,30 +245,26 @@ export default class searchUI {
 
     getCurrentSearchType() {
         if (this.missionRadio.checked) {
+            this.searchInput.placeholder = "Type Mission identifier (use suggestions for accuracy)";
             return "mission";
         }
         if (this.mediaRadio.checked) {
+            this.searchInput.placeholder = "Explore and discover the Universe with Atlas X...";
             return "media";
         }
         return "mission"; // Default
     }
 
     handleInputSuggestions() {
-        if (this.getCurrentSearchType() !== 'mission') {
-            this.suggestList.innerHTML = "";
-            return;
-        }
-
         const query = this.searchInput.value.trim();
 
-        if (query.length === 0) {
-            this.renderSuggestions([]);
-            this.renderRecentSearches(this.searchManager.getRecentSearches());
+        if (this.getCurrentSearchType() !== 'mission' || query.length === 0) {
+            this.hideDropdown(this.suggestList);
+            this.showDropdown(this.listContainer);
             return;
         }
 
-        //recent list
-        this.listContainer.innerHTML = "";
+        this.hideDropdown(this.listContainer);
 
         const lowerQuery = query.toLowerCase();
         const suggestions = this.allMissions
@@ -181,6 +272,9 @@ export default class searchUI {
             .slice(0, 5);
 
         this.renderSuggestions(suggestions);
+
+        this.showDropdown(this.suggestList);
+        this.updateClearButtonState();
     }
 
     renderSuggestions(suggestions) {
@@ -258,6 +352,7 @@ export default class searchUI {
         this.suggestList.innerHTML = "";
         this.searchInput.value = "";
 
+        this.updateClearButtonState();
         console.log("Recent search history deleted.");
     }
 
@@ -279,7 +374,7 @@ export default class searchUI {
 
         /**
          * TODO
-         */  
+         */
         //this.resultsContainer.innerHTML = this.renderSkeleton(this.pageSize);
 
         try {
@@ -298,7 +393,7 @@ export default class searchUI {
                     }
                     return;
                 }
-
+                this.toggleApodSize(true);
                 this.renderMissionResults(data);
 
             } else if (searchType === "media") {
@@ -322,6 +417,7 @@ export default class searchUI {
                 this.currentPage = pageToSearch;
                 this.totalPages = Math.ceil(mediaResponse.totalHits / this.pageSize)
                 console.log("[NASA MEDIA DATA]", data);
+                this.toggleApodSize(true);
                 this.renderMediaResults(data);
                 this.renderPaginationControls();
             }
@@ -329,22 +425,23 @@ export default class searchUI {
             this.searchManager.addSearch(query);
             if (searchType === 'mission') {
                 this.renderRecentSearches(this.searchManager.getRecentSearches());
+                this.updateClearButtonState();
             }
 
         } catch (error) {
-            console.error("Search failed:", error); 
+            console.error("Search failed:", error);
 
             if (searchType === 'mission') {
-                this.resultsContainer.innerHTML = `<p class="error">❌ Connection or API error. ${error.message}</p>`;
+                this.resultsContainer.innerHTML = `<div class="search-error-box"><p>🛰️ Houston, we have a problem fetching data for the mission "<strong>${query}</strong>". It might be a temporary issue. In the meantime, here is the complete mission catalog.</p></div>`;
                 this.renderAllMissionsCatalog();
             } else {
-                this.resultsContainer.innerHTML = `<p class="error">❌ Error while searching ${searchType}: ${error.message}</p>`;
+                this.resultsContainer.innerHTML = `<div class="search-error-box"><p>🛰️ We encountered some cosmic interference while searching for "<strong>${query}</strong>". Please check your connection and try again.</p></div>`;
             }
 
         } finally {
             this.toggleLoadingState(false);
-            //this.searchInput.value = '';
             this.suggestList.innerHTML = "";
+            this.updateClearButtonState();
         }
     }
 
@@ -406,7 +503,7 @@ export default class searchUI {
     renderMediaResults(results) {
         this.resultsContainer.innerHTML = '';
         if (results.length === 0) {
-            this.resultsContainer.innerHTML = '<p>No se encontraron resultados multimedia.</p>';
+            this.resultsContainer.innerHTML = '<p>No multimedia results were found.</p>';
             return;
         }
 
@@ -467,6 +564,12 @@ export default class searchUI {
                 });
             }
 
+            if (visualUrl) { 
+                card.addEventListener('click', () => {
+                    this.openModal(item); 
+                });
+            }
+
             gridContainer.appendChild(card);
         });
         this.resultsContainer.appendChild(gridContainer);
@@ -480,9 +583,6 @@ export default class searchUI {
             return;
         }
 
-        /**
-         * TODO
-         */
         // ---- BASIC RENDER ----
 
         const card = document.createElement('div');
@@ -581,7 +681,6 @@ export default class searchUI {
 
         this.resultsContainer.appendChild(catalogContainer);
 
-        // Add the Click Listener
         this.addCatalogClickListener(catalogContainer);
     }
 
@@ -645,9 +744,10 @@ export default class searchUI {
             // 🎯 CASE: ZERO CLOSE MATCHES
 
             container.innerHTML = `
-                <p>😔 **No exact or close matches were found** for **"${originalQuery}"**.</p>
-                <p>Please check your spelling or refer to the **Complete Mission Catalog** below to explore them all.</p>
-            `;
+                <p class="fuzzy-no-results-icon">🤷‍♂️</p>
+                <p>The identifier you entered, <strong>"${originalQuery}"</strong>, did not yield any results.</p>
+                <p class="catalog-link">Don't worry, here is the complete catalog of missions for you to explore.</p>`;
+
             this.resultsContainer.appendChild(container);
 
             this.renderAllMissionsCatalog();
@@ -655,7 +755,7 @@ export default class searchUI {
         }
 
         // 🎯 CASE: THERE ARE SUGGESTIONS
-        container.innerHTML = `
+        container.innerHTML = ` 
             <p>🤔 Did you mean any of these? Click to search:</p>
             <ul class="fuzzy-list">
                 ${suggestions.map(name =>
@@ -679,4 +779,53 @@ export default class searchUI {
         showCatalogButton.addEventListener('click', this.renderAllMissionsCatalog.bind(this));
         container.appendChild(showCatalogButton);
     }
+
+    /**
+ * @description Toggles the size of the APOD container based on whether results are visible.
+ * @param {boolean} hasResults - True if results are being shown, false otherwise.
+ */
+    toggleApodSize(hasResults) {
+        if (hasResults) {
+            this.apodContainer.classList.add('search-active-small-apod');
+        } else {
+            this.apodContainer.classList.remove('search-active-small-apod');
+        }
+    }
+
+    /**
+     * Displays the list of suggestions or recents.
+     * @param {HTMLElement} listElement - The list container (suggestList or listContainer).
+     */
+    showDropdown(listElement) {
+        if (listElement === this.suggestList) {
+            this.hideDropdown(this.listContainer);
+        } else {
+            this.hideDropdown(this.suggestList);
+        }
+
+        if (listElement.innerHTML.trim() !== '') {
+            listElement.classList.add('visible');
+            this.searchInput.classList.add('focused-dropdown');
+        }
+        this.updateClearButtonState();
+    }
+
+    /**
+    * Hides the dropdown.
+    * @param {HTMLElement} listElement - The list container (suggestList or listContainer).
+    */
+    hideDropdown(listElement) {
+        listElement.classList.remove('visible');
+        this.searchInput.classList.remove('focused-dropdown');
+    }
+
+    updateClearButtonState() {
+        const hasHistory = this.searchManager.getRecentSearches().length > 0;
+        const suggestionsVisible = this.suggestList.classList.contains('visible');
+
+        this.clearButton.style.display = hasHistory && !suggestionsVisible ? 'inline-block' : 'none';
+        this.clearButton.disabled = !hasHistory;
+    }
+
+
 }

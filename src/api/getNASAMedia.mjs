@@ -1,4 +1,4 @@
-import { sanitizaSearchQuery } from "./Utils.js";
+import { sanitizaSearchQuery } from "../core/Utils.js";
 
 /**
  * Media types for Multimedia
@@ -149,9 +149,9 @@ export default class getNASAMedia {
     }
 
     /**
-     * Get the URL of the HIGHEST resolution image (Original/Large) from the asset bundle.
-     * @param {string} nasaId - NASA's unique ID.
-     * @returns {Promise<string|null>} - The URL of the large image or null.
+     * Gets the URL of the HIGHEST resolution image (Original/Large) in the asset bundle.
+     * @param {string} nasaId - The unique NASA ID.
+     * @returns {Promise<string|null>} - The URL of the large or null image.
      */
     async getHighResImageUrl(nasaId) {
         const url = `${this.URL}/asset/${nasaId}`;
@@ -166,23 +166,22 @@ export default class getNASAMedia {
             const data = await response.json();
 
             const originalLink = data.collection.items.find(item =>
-                item.href.includes('~orig.jpg') ||
-                item.href.endsWith('.jpg') ||
-                item.href.endsWith('.jpeg')
+                (item.href.includes('~orig.jpg') || item.href.endsWith('.jpg') || item.href.endsWith('.jpeg')) &&
+                !item.href.toLowerCase().endsWith('.tiff')
             );
 
-            if (originalLink && !originalLink.href.toLowerCase().endsWith('.tiff')) {
+            if (originalLink) {
                 return originalLink.href;
             }
 
             const largeLink = data.collection.items
                 .map(item => item.href)
-                .find(href => href.endsWith('.jpg') || href.endsWith('.jpeg'));
+                .find(href => (href.endsWith('.jpg') || href.endsWith('.jpeg')));
 
             return largeLink || null;
 
         } catch (e) {
-            console.error(`Error al obtener asset manifest para ${nasaId}: ${e.message}`);
+            console.error(`Error fetching asset manifest for ${nasaId}: ${e.message}`);
             return null;
         }
     }
