@@ -1,11 +1,8 @@
 export default class getOSDRMissions {
     constructor() {
-        // Usamos variables de entorno de Vite para diferenciar entre desarrollo y producción.
-        // En desarrollo, usamos el proxy local '/nasa-api'.
-        // En producción, apuntamos directamente a la URL de la API de la NASA.
-        this.URL = import.meta.env.DEV
-            ? "/nasa-api/api"
-            : "https://osdr.nasa.gov/geode-py/ws/api";
+        // Usamos siempre la ruta del proxy. Vite se encarga en desarrollo
+        // y Vercel (con vercel.json) se encarga en producción.
+        this.URL = "/nasa-api/api";
     }
 
     async searchMission(query) {
