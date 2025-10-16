@@ -863,8 +863,7 @@ main {
 
 .parallax-section {
   min-height: 400px;
-
-  background-image: url('src/assets/images/KSC-lg.webp');
+  background-image: url('../assets/images/KSC-lg.webp');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;

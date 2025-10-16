@@ -11,6 +11,7 @@ import defaultAPODImage from '../assets/images/earth-from-space.webp';
 import saturnImage from '../assets/images/saturn.webp';
 import mercuryImage from '../assets/images/mercury.webp';
 import plutoImage from '../assets/images/pluto.webp';
+import jwstImage from '../assets/images/james-webb-space-telescope.webp';
 
 const uiRender = new RenderUIX();
 uiRender.renderLayout();
@@ -62,7 +63,7 @@ document.querySelector('#main-content').innerHTML = `
 
   <div class="highlighted-card">
     <div class="highlighted-image-area">
-        <img src="src/assets/images/james-webb-space-telescope.webp" alt="James Webb Space Telescope">
+        <img src="${jwstImage}" alt="James Webb Space Telescope">
     </div>
     <div class="highlighted-content">
         <h2>James Webb Space Telescope (JWST)</h2>
@@ -105,7 +106,7 @@ async function loadAPOD() {
         ${apodContainer.querySelector('.apod-content-overlay').outerHTML}
     `;
   apodContainer.classList.add('is-image');
-  apodDetailsButton.style.display = 'none'; 
+  apodDetailsButton.style.display = 'none';
 
   const data = await apodManager.getAPODData();
   let apodContent = '';
