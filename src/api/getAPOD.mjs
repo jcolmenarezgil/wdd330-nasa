@@ -1,8 +1,13 @@
 export default class getAPOD {
     constructor() {
         this.URL = "https://api.nasa.gov/planetary/apod";
-        this.API_KEY = import.meta.env.VITE_API_KEY;
+        this.API_KEY = import.meta.env.VITE_API_KEY; // This should be replaced by Vite during build
         this.count = 0;
+
+        // Add a check to ensure the API key is loaded, especially for production builds.
+        if (!this.API_KEY) {
+            console.error("VITE_API_KEY is not defined. Please check your .env file or environment variables.");
+        }
     }
 
     async getAPODData() {
